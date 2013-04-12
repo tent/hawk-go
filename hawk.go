@@ -17,7 +17,7 @@ import (
 	"time"
 )
 
-var MaxTimestampSkew = 60 * time.Second
+var MaxTimestampSkew = time.Minute
 
 var Now = time.Now
 
