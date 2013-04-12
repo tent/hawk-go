@@ -18,9 +18,20 @@ import (
 	"time"
 )
 
-var MaxTimestampSkew = time.Minute
+var (
+	Now              = time.Now
+	MaxTimestampSkew = time.Minute
+)
 
-var Now = time.Now
+var (
+	ErrNoAuth             = errors.New("hawk: no Authorization header or bewit parameter found")
+	ErrReplay             = errors.New("hawk: request nonce is being replayed")
+	ErrInvalidMAC         = errors.New("hawk: invalid MAC")
+	ErrBewitExpired       = errors.New("hawk: bewit expired")
+	ErrTimestampSkew      = errors.New("hawk: timestamp skew too high")
+	ErrMissingServerAuth  = errors.New("hawk: missing Server-Authentication header")
+	ErrInvalidBewitMethod = errors.New("hawk: bewit only allows HEAD and GET requests")
+)
 
 type CredentialErrorType int
 
@@ -146,11 +157,6 @@ func NewAuthFromBewit(bewit string) (*Auth, error) {
 
 	return auth, nil
 }
-
-var ErrNoAuth = errors.New("hawk: no Authorization header or bewit parameter found")
-var ErrReplay = errors.New("hawk: request nonce is being replayed")
-
-var ErrInvalidBewitMethod = errors.New("hawk: bewit only allows HEAD and GET requests")
 
 func NewAuthFromRequest(req *http.Request, creds CredentialsLookupFunc, nonce NonceCheckFunc) (*Auth, error) {
 	header := req.Header.Get("Authorization")
@@ -331,10 +337,6 @@ func (auth *Auth) ParseHeader(header string, t AuthType) error {
 	return nil
 }
 
-var ErrTimestampSkew = errors.New("hawk: timestamp skew too high")
-var ErrInvalidMAC = errors.New("hawk: invalid MAC")
-var ErrBewitExpired = errors.New("hawk: bewit expired")
-
 func (auth *Auth) Valid() error {
 	t := AuthHeader
 	if auth.IsBewit {
@@ -363,8 +365,6 @@ func abs(d time.Duration) time.Duration {
 	}
 	return d
 }
-
-var ErrMissingServerAuth = errors.New("hawk: missing Server-Authentication header")
 
 func (auth *Auth) ValidResponse(header string) error {
 	if header == "" {
