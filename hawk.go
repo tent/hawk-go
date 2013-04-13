@@ -120,7 +120,7 @@ func NewAuthFromRequestHeader(header string) (*Auth, error) {
 	if auth.Nonce == "" {
 		return nil, AuthFormatError{"nonce", "missing or empty"}
 	}
-	auth.reqHash = true
+	auth.ReqHash = true
 
 	return auth, nil
 }
@@ -280,13 +280,12 @@ type Auth struct {
 	App   string
 	Hash  []byte
 
+	ReqHash   bool
 	IsBewit   bool
 	Delegate  string
 	Timestamp time.Time
 
 	ActualTimestamp time.Time
-
-	reqHash bool
 }
 
 var headerRegex = regexp.MustCompile(`(id|ts|nonce|hash|ext|mac|app|dlg)="([ !#-\[\]-~]+)"`) // character class is ASCII printable [\x20-\x7E] without \ and "
@@ -401,7 +400,7 @@ func (auth *Auth) ValidHash(h hash.Hash) bool {
 func (auth *Auth) SetHash(h hash.Hash) {
 	h.Write([]byte("\n"))
 	auth.Hash = h.Sum(nil)
-	auth.reqHash = false
+	auth.ReqHash = false
 }
 
 func (auth *Auth) ResponseHeader(ext string) string {
@@ -411,7 +410,7 @@ func (auth *Auth) ResponseHeader(ext string) string {
 	if auth.Ext != "" {
 		h += `, ext="` + auth.Ext + `"`
 	}
-	if !auth.reqHash && auth.Hash != nil {
+	if !auth.ReqHash && auth.Hash != nil {
 		h += `, hash="` + base64.StdEncoding.EncodeToString(auth.Hash) + `"`
 	}
 
