@@ -93,7 +93,7 @@ func (a AuthType) String() string {
 	return "header"
 }
 
-type CredentialsLookupFunc func(id, app string) (Credentials, error)
+type CredentialsLookupFunc func(id, app string) (*Credentials, error)
 
 type NonceCheckFunc func(nonce string, ts time.Time) bool
 
@@ -195,10 +195,11 @@ func NewAuthFromRequest(req *http.Request, creds CredentialsLookupFunc, nonce No
 	}
 	auth.Host, auth.Port = extractHostPort(req)
 	if creds != nil {
-		auth.Credentials, err = creds(auth.Credentials.ID, auth.App)
+		c, err := creds(auth.Credentials.ID, auth.App)
 		if err != nil {
 			return nil, err
 		}
+		auth.Credentials = *c
 	}
 	if nonce != nil && !auth.IsBewit && !nonce(auth.Nonce, auth.Timestamp) {
 		return nil, ErrReplay

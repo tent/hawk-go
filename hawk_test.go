@@ -110,8 +110,8 @@ func now(ts int64) func() time.Time {
 }
 
 func creds(key string, h func() hash.Hash) hawk.CredentialsLookupFunc {
-	return func(id, app string) (hawk.Credentials, error) {
-		return hawk.Credentials{Key: []byte(key), Hash: h}, nil
+	return func(id, app string) (*hawk.Credentials, error) {
+		return &hawk.Credentials{Key: []byte(key), Hash: h}, nil
 	}
 }
 
