@@ -6,7 +6,6 @@ import (
 	"crypto/rand"
 	"crypto/subtle"
 	"encoding/base64"
-	"errors"
 	"fmt"
 	"hash"
 	"io"
@@ -24,14 +23,18 @@ var (
 )
 
 var (
-	ErrNoAuth             = errors.New("hawk: no Authorization header or bewit parameter found")
-	ErrReplay             = errors.New("hawk: request nonce is being replayed")
-	ErrInvalidMAC         = errors.New("hawk: invalid MAC")
-	ErrBewitExpired       = errors.New("hawk: bewit expired")
-	ErrTimestampSkew      = errors.New("hawk: timestamp skew too high")
-	ErrMissingServerAuth  = errors.New("hawk: missing Server-Authentication header")
-	ErrInvalidBewitMethod = errors.New("hawk: bewit only allows HEAD and GET requests")
+	ErrNoAuth             = AuthError("no Authorization header or bewit parameter found")
+	ErrReplay             = AuthError("request nonce is being replayed")
+	ErrInvalidMAC         = AuthError("invalid MAC")
+	ErrBewitExpired       = AuthError("bewit expired")
+	ErrTimestampSkew      = AuthError("timestamp skew too high")
+	ErrMissingServerAuth  = AuthError("missing Server-Authentication header")
+	ErrInvalidBewitMethod = AuthError("bewit only allows HEAD and GET requests")
 )
+
+type AuthError string
+
+func (e AuthError) Error() string { return "hawk: " + string(e) }
 
 type CredentialErrorType int
 
