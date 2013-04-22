@@ -11,6 +11,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -194,7 +195,7 @@ func NewAuthFromRequest(req *http.Request, creds CredentialsLookupFunc, nonce No
 		bewitPattern, _ := regexp.Compile(`\?bewit=` + bewit + `\z|bewit=` + bewit + `&|&bewit=` + bewit + `\z`)
 		auth.Path = bewitPattern.ReplaceAllString(auth.Path, "")
 	}
-	auth.Host, auth.Port = extractHostPort(req)
+	auth.Host, auth.Port = extractReqHostPort(req)
 	if creds != nil {
 		c, err := creds(auth.Credentials.ID, auth.App)
 		if err != nil {
@@ -208,7 +209,7 @@ func NewAuthFromRequest(req *http.Request, creds CredentialsLookupFunc, nonce No
 	return auth, nil
 }
 
-func extractHostPort(req *http.Request) (host string, port string) {
+func extractReqHostPort(req *http.Request) (host string, port string) {
 	if idx := strings.Index(req.Host, ":"); idx != -1 {
 		host, port, _ = net.SplitHostPort(req.Host)
 	} else {
@@ -251,8 +252,42 @@ func NewRequestAuth(req *http.Request, creds *Credentials, tsOffset time.Duratio
 	if req.URL.RawQuery != "" {
 		auth.Path += "?" + req.URL.RawQuery
 	}
-	auth.Host, auth.Port = extractHostPort(req)
+	auth.Host, auth.Port = extractReqHostPort(req)
 	return auth
+}
+
+func NewURLAuth(uri string, creds *Credentials, tsOffset time.Duration) (*Auth, error) {
+	u, err := url.Parse(uri)
+	if err != nil {
+		return nil, err
+	}
+	auth := &Auth{
+		Method:      "GET",
+		Credentials: *creds,
+		Timestamp:   Now().Add(tsOffset),
+		Path:        u.Path,
+	}
+	if u.RawQuery != "" {
+		auth.Path += "?" + u.RawQuery
+	}
+	auth.Host, auth.Port = extractURLHostPort(u)
+	return auth, nil
+}
+
+func extractURLHostPort(u *url.URL) (host string, port string) {
+	if idx := strings.Index(u.Host, ":"); idx != -1 {
+		host, port, _ = net.SplitHostPort(u.Host)
+	} else {
+		host = u.Host
+	}
+	if port == "" {
+		if u.Scheme == "http" {
+			port = "80"
+		} else {
+			port = "443"
+		}
+	}
+	return
 }
 
 func nonce() string {
