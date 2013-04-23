@@ -56,13 +56,12 @@ func (t CredentialErrorType) String() string {
 }
 
 type CredentialError struct {
-	Type CredentialErrorType
-	ID   string
-	App  string
+	Type        CredentialErrorType
+	Credentials *Credentials
 }
 
 func (e *CredentialError) Error() string {
-	return fmt.Sprintf("hawk: credential error with id %s and app %s: %s", e.ID, e.App, e.Type)
+	return fmt.Sprintf("hawk: credential error with id %s and app %s: %s", e.Credentials.ID, e.Credentials.App, e.Type)
 }
 
 type Credentials struct {
