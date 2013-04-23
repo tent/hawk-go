@@ -67,12 +67,15 @@ func (e *CredentialError) Error() string {
 
 type Credentials struct {
 	ID   string
-	Key  []byte
+	Key  string
 	Hash func() hash.Hash
 	Data interface{}
+
+	App      string
+	Delegate string
 }
 
-func (creds *Credentials) MAC() hash.Hash { return hmac.New(creds.Hash, creds.Key) }
+func (creds *Credentials) MAC() hash.Hash { return hmac.New(creds.Hash, []byte(creds.Key)) }
 
 type AuthType int
 
@@ -94,7 +97,7 @@ func (a AuthType) String() string {
 	return "header"
 }
 
-type CredentialsLookupFunc func(id, app string) (*Credentials, error)
+type CredentialsLookupFunc func(creds *Credentials) error
 
 type NonceCheckFunc func(nonce string, ts time.Time) bool
 
@@ -197,11 +200,10 @@ func NewAuthFromRequest(req *http.Request, creds CredentialsLookupFunc, nonce No
 	}
 	auth.Host, auth.Port = extractReqHostPort(req)
 	if creds != nil {
-		c, err := creds(auth.Credentials.ID, auth.App)
+		err = creds(&auth.Credentials)
 		if err != nil {
 			return nil, err
 		}
-		auth.Credentials = *c
 	}
 	if nonce != nil && !auth.IsBewit && !nonce(auth.Nonce, auth.Timestamp) {
 		return nil, ErrReplay
@@ -312,12 +314,10 @@ type Auth struct {
 	MAC   []byte
 	Nonce string
 	Ext   string
-	App   string
 	Hash  []byte
 
 	ReqHash   bool
 	IsBewit   bool
-	Delegate  string
 	Timestamp time.Time
 
 	ActualTimestamp time.Time
@@ -351,9 +351,9 @@ func (auth *Auth) ParseHeader(header string, t AuthType) error {
 			if t == AuthHeader {
 				switch match[1] {
 				case "app":
-					auth.App = match[2]
+					auth.Credentials.App = match[2]
 				case "dlg":
-					auth.Delegate = match[2]
+					auth.Credentials.Delegate = match[2]
 				case "id":
 					auth.Credentials.ID = match[2]
 				case "ts":
@@ -466,11 +466,11 @@ func (auth *Auth) RequestHeader() string {
 	if auth.Ext != "" {
 		h += `, ext="` + auth.Ext + `"`
 	}
-	if auth.App != "" {
-		h += `, app="` + auth.App + `"`
+	if auth.Credentials.App != "" {
+		h += `, app="` + auth.Credentials.App + `"`
 	}
-	if auth.Delegate != "" {
-		h += `, dlg="` + auth.Delegate + `"`
+	if auth.Credentials.Delegate != "" {
+		h += `, dlg="` + auth.Credentials.Delegate + `"`
 	}
 
 	return h
@@ -496,9 +496,9 @@ func (auth *Auth) NormalizedString(t AuthType) string {
 		base64.StdEncoding.EncodeToString(auth.Hash) + "\n" +
 		auth.Ext + "\n"
 
-	if auth.App != "" {
-		str += auth.App + "\n"
-		str += auth.Delegate + "\n"
+	if auth.Credentials.App != "" {
+		str += auth.Credentials.App + "\n"
+		str += auth.Credentials.Delegate + "\n"
 	}
 
 	return str

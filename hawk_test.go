@@ -110,8 +110,10 @@ func now(ts int64) func() time.Time {
 }
 
 func creds(key string, h func() hash.Hash) hawk.CredentialsLookupFunc {
-	return func(id, app string) (*hawk.Credentials, error) {
-		return &hawk.Credentials{Key: []byte(key), Hash: h}, nil
+	return func(creds *hawk.Credentials) error {
+		creds.Key = key
+		creds.Hash = h
+		return nil
 	}
 }
 
@@ -162,7 +164,7 @@ func (s *HawkSuite) TestRequestAuth(c *C) {
 func (s *HawkSuite) TestRequestSigning(c *C) {
 	u, _ := url.Parse("https://example.net/somewhere/over/the/rainbow")
 	auth := hawk.NewRequestAuth(&http.Request{URL: u, Method: "POST"},
-		&hawk.Credentials{ID: "123456", Key: []byte("2983d45yun89q"), Hash: sha256.New}, 0)
+		&hawk.Credentials{ID: "123456", Key: "2983d45yun89q", Hash: sha256.New}, 0)
 	auth.Nonce = "Ygvqdz"
 	auth.Ext = "Bazinga!"
 	auth.Timestamp = time.Unix(1353809207, 0)
@@ -195,7 +197,7 @@ func (s *HawkSuite) TestResponseAuth(c *C) {
 		Nonce:       "eb5S_L",
 		Ext:         "some-app-data",
 		Timestamp:   time.Unix(1362336900, 0),
-		Credentials: hawk.Credentials{ID: "123456", Key: []byte("werxhqb98rpaxn39848xrunpaw3489ruxnpa98w4rxn"), Hash: sha256.New},
+		Credentials: hawk.Credentials{ID: "123456", Key: "werxhqb98rpaxn39848xrunpaw3489ruxnpa98w4rxn", Hash: sha256.New},
 	}
 
 	for i, test := range responseAuthHeaderTests {
@@ -213,7 +215,7 @@ func (s *HawkSuite) TestResponseHeader(c *C) {
 		Nonce:       "eb5S_L",
 		Ext:         "foo",
 		Timestamp:   time.Unix(1362336900, 0),
-		Credentials: hawk.Credentials{ID: "123456", Key: []byte("werxhqb98rpaxn39848xrunpaw3489ruxnpa98w4rxn"), Hash: sha256.New},
+		Credentials: hawk.Credentials{ID: "123456", Key: "werxhqb98rpaxn39848xrunpaw3489ruxnpa98w4rxn", Hash: sha256.New},
 	}
 	auth.Hash, _ = base64.StdEncoding.DecodeString("f9cDF/TDm7TkYRLnGwRMfeDzT6LixQVLvrIKhh0vgmM=")
 	c.Assert(auth.ResponseHeader("response-specific"), Equals, `Hawk mac="XIJRsMl/4oL+nn+vKoeVZPdCHXB4yJkNnBbTbHFZUYE=", ext="response-specific", hash="f9cDF/TDm7TkYRLnGwRMfeDzT6LixQVLvrIKhh0vgmM="`)
@@ -232,7 +234,7 @@ func (s *HawkSuite) TestValidHash(c *C) {
 func (s *HawkSuite) TestBewit(c *C) {
 	u, _ := url.Parse("https://example.com/somewhere/over/the/rainbow")
 	auth := hawk.NewRequestAuth(&http.Request{URL: u},
-		&hawk.Credentials{ID: "123456", Key: []byte("2983d45yun89q"), Hash: sha256.New}, 0)
+		&hawk.Credentials{ID: "123456", Key: "2983d45yun89q", Hash: sha256.New}, 0)
 	auth.Ext = "xandyandz"
 	auth.Timestamp = time.Unix(1356420707, 0)
 	c.Assert(auth.Bewit(), Equals, "MTIzNDU2XDEzNTY0MjA3MDdca3NjeHdOUjJ0SnBQMVQxekRMTlBiQjVVaUtJVTl0T1NKWFRVZEc3WDloOD1ceGFuZHlhbmR6")
@@ -240,13 +242,13 @@ func (s *HawkSuite) TestBewit(c *C) {
 
 func (s *HawkSuite) TestStaleHeader(c *C) {
 	hawk.Now = now(1365741469)
-	auth := &hawk.Auth{Credentials: hawk.Credentials{Key: []byte("werxhqb98rpaxn39848xrunpaw3489ruxnpa98w4rxn"), Hash: sha256.New}}
+	auth := &hawk.Auth{Credentials: hawk.Credentials{Key: "werxhqb98rpaxn39848xrunpaw3489ruxnpa98w4rxn", Hash: sha256.New}}
 	c.Assert(auth.StaleTimestampHeader(), Equals, `Hawk ts="1365741469", tsm="b4Qqhz8OUBq21saghHLV1ktwlXE72T1xtTEZkSlWizA=", error="Stale timestamp"`)
 }
 
 func (s *HawkSuite) TestUpdateOffset(c *C) {
 	hawk.Now = now(0)
-	auth := &hawk.Auth{Credentials: hawk.Credentials{Key: []byte("werxhqb98rpaxn39848xrunpaw3489ruxnpa98w4rxn"), Hash: sha256.New}}
+	auth := &hawk.Auth{Credentials: hawk.Credentials{Key: "werxhqb98rpaxn39848xrunpaw3489ruxnpa98w4rxn", Hash: sha256.New}}
 	offset, err := auth.UpdateOffset(`Hawk ts="1365741469", tsm="b4Qqhz8OUBq21saghHLV1ktwlXE72T1xtTEZkSlWizA=", error="Stale timestamp"`)
 	c.Assert(err, IsNil)
 	c.Assert(offset, Equals, 1365741469*time.Second)
