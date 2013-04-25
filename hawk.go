@@ -266,10 +266,12 @@ func NewURLAuth(uri string, creds *Credentials, tsOffset time.Duration) (*Auth, 
 		Method:      "GET",
 		Credentials: *creds,
 		Timestamp:   Now().Add(tsOffset),
-		Path:        u.Path,
 	}
-	if u.RawQuery != "" {
-		auth.Path += "?" + u.RawQuery
+	if u.Path != "" {
+		// url.Parse unescapes the path, which is unexpected
+		auth.Path = "/" + strings.SplitN(uri[8:], "/", 2)[1]
+	} else {
+		auth.Path = "/"
 	}
 	auth.Host, auth.Port = extractURLHostPort(u)
 	return auth, nil
