@@ -191,7 +191,11 @@ func NewAuthFromRequest(req *http.Request, creds CredentialsLookupFunc, nonce No
 	}
 
 	auth.Method = req.Method
-	auth.Path = req.RequestURI
+	if strings.HasPrefix(req.RequestURI, "http") {
+		auth.Path = "/" + strings.SplitN(req.RequestURI[8:], "/", 2)[1]
+	} else {
+		auth.Path = req.RequestURI
+	}
 	if bewit != "" {
 		auth.Method = "GET"
 		bewitPattern, _ := regexp.Compile(`\?bewit=` + bewit + `\z|bewit=` + bewit + `&|&bewit=` + bewit + `\z`)
