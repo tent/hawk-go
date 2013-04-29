@@ -141,7 +141,7 @@ func (s *HawkSuite) TestRequestAuth(c *C) {
 			test.key = "werxhqb98rpaxn39848xrunpaw3489ruxnpa98w4rxn"
 		}
 		hawk.Now = now(test.now)
-		nonce := func(nonce string, ts time.Time) bool { return !test.rply }
+		nonce := func(string, time.Time, *hawk.Credentials) bool { return !test.rply }
 
 		req := &http.Request{
 			Method:     test.meth,

@@ -96,9 +96,9 @@ func (a AuthType) String() string {
 	return "header"
 }
 
-type CredentialsLookupFunc func(creds *Credentials) error
+type CredentialsLookupFunc func(*Credentials) error
 
-type NonceCheckFunc func(nonce string, ts time.Time) bool
+type NonceCheckFunc func(string, time.Time, *Credentials) bool
 
 type AuthFormatError struct {
 	Field string
@@ -208,7 +208,7 @@ func NewAuthFromRequest(req *http.Request, creds CredentialsLookupFunc, nonce No
 			return nil, err
 		}
 	}
-	if nonce != nil && !auth.IsBewit && !nonce(auth.Nonce, auth.Timestamp) {
+	if nonce != nil && !auth.IsBewit && !nonce(auth.Nonce, auth.Timestamp, &auth.Credentials) {
 		return nil, ErrReplay
 	}
 	return auth, nil
