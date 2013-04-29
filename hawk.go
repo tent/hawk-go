@@ -257,6 +257,9 @@ func NewRequestAuth(req *http.Request, creds *Credentials, tsOffset time.Duratio
 	if req.URL.RawQuery != "" {
 		auth.Path += "?" + req.URL.RawQuery
 	}
+	if req.URL.Opaque != "" {
+		auth.Path = "/" + strings.SplitN(req.URL.Opaque[8:], "/", 2)[1]
+	}
 	auth.Host, auth.Port = extractReqHostPort(req)
 	return auth
 }
