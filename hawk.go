@@ -1,3 +1,4 @@
+// Package hawk implements the Hawk HTTP authenication scheme.
 package hawk
 
 import (
@@ -18,10 +19,11 @@ import (
 	"time"
 )
 
-var (
-	Now              = time.Now
-	MaxTimestampSkew = time.Minute
-)
+// Now is a func() time.Time that is used by the package to get the current time.
+var Now = time.Now
+
+// MaxTimestampSkew is the maximum ±skew that a request timestamp can have without returning ErrTimestampSkew.
+var MaxTimestampSkew = time.Minute
 
 var (
 	ErrNoAuth             = AuthError("no Authorization header or bewit parameter found")
@@ -55,6 +57,8 @@ func (t CredentialErrorType) String() string {
 	return "unknown id"
 }
 
+// CredentialError is returned by a NonceCheckFunc when the provided credentials
+// ID is invalid.
 type CredentialError struct {
 	Type        CredentialErrorType
 	Credentials *Credentials
@@ -68,6 +72,9 @@ type Credentials struct {
 	ID   string
 	Key  string
 	Hash func() hash.Hash
+
+	// Data may be set in a CredentialsLookupFunc to correlate the credentials
+	// with an internal data record.
 	Data interface{}
 
 	App      string
@@ -96,8 +103,20 @@ func (a AuthType) String() string {
 	return "header"
 }
 
+// A CredentialsLookupFunc is called by NewAuthFromRequest after parsing the
+// request auth. The Credentials will never be nil and ID will always be set.
+// App and Delegate will be set if provided in the request. This function must
+// look up the corresponding Key and Hash and set them on the provided
+// Credentials. If the Key/Hash are found and the App/Delegate are valid (if
+// provided) the error should be nil. If the Key or App could not be found or
+// the App does not match the ID, then a CredentialError must be returned.
+// Errors will propagate to the caller of NewAuthFromRequest, so internal errors
+// may be returned.
 type CredentialsLookupFunc func(*Credentials) error
 
+// A NonceCheckFunc is called by NewAuthFromRequest and should make sure that
+// the provided nonce is unique within the context of the provided time.Time and
+// Credentials. It should return false if the nonce is being replayed.
 type NonceCheckFunc func(string, time.Time, *Credentials) bool
 
 type AuthFormatError struct {
@@ -107,7 +126,10 @@ type AuthFormatError struct {
 
 func (e AuthFormatError) Error() string { return "hawk: invalid " + e.Field + ", " + e.Err }
 
-func NewAuthFromRequestHeader(header string) (*Auth, error) {
+// ParseRequestHeader parses a Hawk header (provided in the Authorization
+// HTTP header) and populates an Auth. If an error is returned it will always be
+// of type AuthFormatError.
+func ParseRequestHeader(header string) (*Auth, error) {
 	auth := &Auth{ActualTimestamp: Now()}
 	err := auth.ParseHeader(header, AuthHeader)
 	if err != nil {
@@ -128,7 +150,9 @@ func NewAuthFromRequestHeader(header string) (*Auth, error) {
 	return auth, nil
 }
 
-func NewAuthFromBewit(bewit string) (*Auth, error) {
+// ParseBewit parses a bewit token provided in a URL parameter and populates an
+// Auth. If an error is returned it will always be of type AuthFormatError.
+func ParseBewit(bewit string) (*Auth, error) {
 	if len(bewit)%4 != 0 {
 		bewit += strings.Repeat("=", 4-len(bewit)%4)
 	}
@@ -165,6 +189,17 @@ func NewAuthFromBewit(bewit string) (*Auth, error) {
 	return auth, nil
 }
 
+// NewAuthFromRequest parses a request containing an Authorization header or
+// bewit parameter and populates an Auth. If creds is not nil it will be called
+// to look up the associated credentials. If nonce is not nil it will be called
+// to make sure the nonce is not replayed.
+//
+// If the request does not contain a bewit or Authorization header, ErrNoAuth is
+// returned. If the request contains a bewit and it is not a GET or HEAD
+// request, ErrInvalidBewitMethod is returned. If there is an error parsing the
+// provided auth details, an AuthFormatError will be returned. If creds returns
+// an error, it will be returned. If nonce returns false, ErrReplay will be
+// returned.
 func NewAuthFromRequest(req *http.Request, creds CredentialsLookupFunc, nonce NonceCheckFunc) (*Auth, error) {
 	header := req.Header.Get("Authorization")
 	bewit := req.URL.Query().Get("bewit")
@@ -172,7 +207,7 @@ func NewAuthFromRequest(req *http.Request, creds CredentialsLookupFunc, nonce No
 	var auth *Auth
 	var err error
 	if header != "" {
-		auth, err = NewAuthFromRequestHeader(header)
+		auth, err = ParseRequestHeader(header)
 		if err != nil {
 			return nil, err
 		}
@@ -181,7 +216,7 @@ func NewAuthFromRequest(req *http.Request, creds CredentialsLookupFunc, nonce No
 		if req.Method != "GET" && req.Method != "HEAD" {
 			return nil, ErrInvalidBewitMethod
 		}
-		auth, err = NewAuthFromBewit(bewit)
+		auth, err = ParseBewit(bewit)
 		if err != nil {
 			return nil, err
 		}
@@ -246,6 +281,8 @@ func extractReqHostPort(req *http.Request) (host string, port string) {
 	return
 }
 
+// NewRequestAuth builds a client Auth based on req and creds. tsOffset will be
+// applied to Now when setting the timestamp.
 func NewRequestAuth(req *http.Request, creds *Credentials, tsOffset time.Duration) *Auth {
 	auth := &Auth{
 		Method:      req.Method,
@@ -264,6 +301,8 @@ func NewRequestAuth(req *http.Request, creds *Credentials, tsOffset time.Duratio
 	return auth
 }
 
+// NewRequestAuth builds a client Auth based on uri and creds. tsOffset will be
+// applied to Now when setting the timestamp.
 func NewURLAuth(uri string, creds *Credentials, tsOffset time.Duration) (*Auth, error) {
 	u, err := url.Parse(uri)
 	if err != nil {
