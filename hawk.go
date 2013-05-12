@@ -226,15 +226,11 @@ func NewAuthFromRequest(req *http.Request, creds CredentialsLookupFunc, nonce No
 	}
 
 	auth.Method = req.Method
-	if strings.HasPrefix(req.RequestURI, "http") {
-		auth.Path = "/" + strings.SplitN(req.RequestURI[8:], "/", 2)[1]
-	} else {
-		auth.Path = req.RequestURI
-	}
+	auth.RequestURI = req.RequestURI
 	if bewit != "" {
 		auth.Method = "GET"
 		bewitPattern, _ := regexp.Compile(`\?bewit=` + bewit + `\z|bewit=` + bewit + `&|&bewit=` + bewit + `\z`)
-		auth.Path = bewitPattern.ReplaceAllString(auth.Path, "")
+		auth.RequestURI = bewitPattern.ReplaceAllString(auth.RequestURI, "")
 	}
 	auth.Host, auth.Port = extractReqHostPort(req)
 	if creds != nil {
@@ -289,13 +285,7 @@ func NewRequestAuth(req *http.Request, creds *Credentials, tsOffset time.Duratio
 		Credentials: *creds,
 		Timestamp:   Now().Add(tsOffset),
 		Nonce:       nonce(),
-		Path:        req.URL.Path,
-	}
-	if req.URL.RawQuery != "" {
-		auth.Path += "?" + req.URL.RawQuery
-	}
-	if req.URL.Opaque != "" {
-		auth.Path = "/" + strings.SplitN(req.URL.Opaque[8:], "/", 2)[1]
+		RequestURI:  req.URL.RequestURI(),
 	}
 	auth.Host, auth.Port = extractReqHostPort(req)
 	return auth
@@ -315,9 +305,9 @@ func NewURLAuth(uri string, creds *Credentials, tsOffset time.Duration) (*Auth, 
 	}
 	if u.Path != "" {
 		// url.Parse unescapes the path, which is unexpected
-		auth.Path = "/" + strings.SplitN(uri[8:], "/", 2)[1]
+		auth.RequestURI = "/" + strings.SplitN(uri[8:], "/", 2)[1]
 	} else {
-		auth.Path = "/"
+		auth.RequestURI = "/"
 	}
 	auth.Host, auth.Port = extractURLHostPort(u)
 	return auth, nil
@@ -353,10 +343,10 @@ const headerVersion = "1"
 type Auth struct {
 	Credentials Credentials
 
-	Method string
-	Path   string
-	Host   string
-	Port   string
+	Method     string
+	RequestURI string
+	Host       string
+	Port       string
 
 	MAC   []byte
 	Nonce string
@@ -442,6 +432,15 @@ func (auth *Auth) Valid() error {
 		}
 	}
 	if !hmacEqual(auth.mac(t), auth.MAC) {
+		if auth.IsBewit && strings.HasPrefix(auth.RequestURI, "http") && len(auth.RequestURI) > 9 {
+			// try just the path
+			uri := auth.RequestURI
+			auth.RequestURI = "/" + strings.SplitN(auth.RequestURI[8:], "/", 2)[1]
+			if auth.Valid() == nil {
+				return nil
+			}
+			auth.RequestURI = uri
+		}
 		return ErrInvalidMAC
 	}
 	return nil
@@ -537,7 +536,7 @@ func (auth *Auth) NormalizedString(t AuthType) string {
 		strconv.FormatInt(auth.Timestamp.Unix(), 10) + "\n" +
 		auth.Nonce + "\n" +
 		auth.Method + "\n" +
-		auth.Path + "\n" +
+		auth.RequestURI + "\n" +
 		auth.Host + "\n" +
 		auth.Port + "\n" +
 		base64.StdEncoding.EncodeToString(auth.Hash) + "\n" +
