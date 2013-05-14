@@ -353,15 +353,21 @@ type Auth struct {
 	Ext   string
 	Hash  []byte
 
+	// ReqHash is true if the request contained a hash
 	ReqHash   bool
 	IsBewit   bool
 	Timestamp time.Time
 
+	// ActualTimestamp is when the request was received
 	ActualTimestamp time.Time
 }
 
 var headerRegex = regexp.MustCompile(`(id|ts|nonce|hash|ext|mac|app|dlg)="([ !#-\[\]-~]+)"`) // character class is ASCII printable [\x20-\x7E] without \ and "
 
+// ParseHeader parses a Hawk request or response header and populates auth.
+// t must be AuthHeader if the header is an Authorization header from a request
+// or AuthResponse if the header is a Server-Authorization header from
+// a response.
 func (auth *Auth) ParseHeader(header string, t AuthType) error {
 	if len(header) < 4 || strings.ToLower(header[:4]) != "hawk" {
 		return AuthFormatError{"scheme", "must be Hawk"}
@@ -415,6 +421,14 @@ func (auth *Auth) ParseHeader(header string, t AuthType) error {
 	return nil
 }
 
+// Valid confirms that the timestamp is within skew and verifies the MAC.
+//
+// If the request is valid, nil will be returned. If auth is a bewit and the
+// method is not GET or HEAD, ErrInvalidBewitMethod will be returned. If auth is
+// a bewit and the timestamp is after the the specified expiry, ErrBewitExpired
+// will be returned. If auth is from a request header and the timestamp is
+// outside the maximum skew, ErrTimestampSkew will be returned. If the MAC is
+// not the expected value, ErrInvalidMAC will be returned.
 func (auth *Auth) Valid() error {
 	t := AuthHeader
 	if auth.IsBewit {
@@ -453,6 +467,10 @@ func abs(d time.Duration) time.Duration {
 	return d
 }
 
+// ValidResponse checks that a response Server-Authorization header is correct.
+//
+// ErrMissingServerAuth is returned if header is an empty string. ErrInvalidMAC
+// is returned if the MAC is not the expected value.
 func (auth *Auth) ValidResponse(header string) error {
 	if header == "" {
 		return ErrMissingServerAuth
@@ -467,23 +485,33 @@ func (auth *Auth) ValidResponse(header string) error {
 	return nil
 }
 
+// PayloadHash initializes a hash for body validation. To validate a request or
+// response body, call PayloadHash with contentType set to the body Content-Type
+// with all parameters and prefix/suffix whitespace stripped, write the entire
+// body to the returned hash, and then validate the hash with ValidHash.
 func (auth *Auth) PayloadHash(contentType string) hash.Hash {
 	h := auth.Credentials.Hash()
 	h.Write([]byte("hawk." + headerVersion + ".payload\n" + contentType + "\n"))
 	return h
 }
 
+// ValidHash writes the final newline to h and checks if it matches auth.Hash.
 func (auth *Auth) ValidHash(h hash.Hash) bool {
 	h.Write([]byte("\n"))
 	return bytes.Equal(h.Sum(nil), auth.Hash)
 }
 
+// SetHash writes the final newline to h and sets auth.Hash to the sum. This is
+// used to specify a response payload hash.
 func (auth *Auth) SetHash(h hash.Hash) {
 	h.Write([]byte("\n"))
 	auth.Hash = h.Sum(nil)
 	auth.ReqHash = false
 }
 
+// ResponseHeader builds a response header based on the auth and provided ext,
+// which may be an empty string. Use PayloadHash and SetHash before
+// ResponseHeader to include a hash of the response payload.
 func (auth *Auth) ResponseHeader(ext string) string {
 	auth.Ext = ext
 
@@ -498,6 +526,7 @@ func (auth *Auth) ResponseHeader(ext string) string {
 	return h
 }
 
+// RequestHeader builds a request header based on the auth.
 func (auth *Auth) RequestHeader() string {
 	auth.MAC = auth.mac(AuthHeader)
 
@@ -522,6 +551,7 @@ func (auth *Auth) RequestHeader() string {
 	return h
 }
 
+// Bewit creates and encoded request bewit parameter based on the auth.
 func (auth *Auth) Bewit() string {
 	auth.Method = "GET"
 	auth.Nonce = ""
@@ -531,6 +561,8 @@ func (auth *Auth) Bewit() string {
 		auth.Ext)), "=")
 }
 
+// NormalizedString builds the string that will be HMACed to create a request
+// MAC.
 func (auth *Auth) NormalizedString(t AuthType) string {
 	str := "hawk." + headerVersion + "." + t.String() + "\n" +
 		strconv.FormatInt(auth.Timestamp.Unix(), 10) + "\n" +
@@ -562,6 +594,8 @@ func (auth *Auth) tsMac(ts string) []byte {
 	return mac.Sum(nil)
 }
 
+// StaleTimestampHeader builds a signed WWW-Authenticate response header for use
+// when Valid returns ErrTimestampSkew.
 func (auth *Auth) StaleTimestampHeader() string {
 	ts := strconv.FormatInt(Now().Unix(), 10)
 	return `Hawk ts="` + ts +
@@ -571,6 +605,9 @@ func (auth *Auth) StaleTimestampHeader() string {
 
 var tsHeaderRegex = regexp.MustCompile(`(ts|tsm|error)="([ !#-\[\]-~]+)"`) // character class is ASCII printable [\x20-\x7E] without \ and "
 
+// UpdateOffset parses a signed WWW-Authenticate response header containing
+// a stale timestamp error and updates auth.Timestamp with an adjusted
+// timestamp.
 func (auth *Auth) UpdateOffset(header string) (time.Duration, error) {
 	if len(header) < 4 || strings.ToLower(header[:4]) != "hawk" {
 		return 0, AuthFormatError{"scheme", "must be Hawk"}
