@@ -68,28 +68,28 @@ var requestAuthTests = []struct {
 		port: 8000,
 		verr: hawk.ErrTimestampSkew,
 	},
-	{hdr: "Basic asdasdasdasd", perr: hawk.AuthFormatError{"scheme", "must be Hawk"}},
-	{hdr: "a", perr: hawk.AuthFormatError{"scheme", "must be Hawk"}},
+	{hdr: "Basic asdasdasdasd", perr: hawk.AuthFormatError{Field: "scheme", Err: "must be Hawk"}},
+	{hdr: "a", perr: hawk.AuthFormatError{Field: "scheme", Err: "must be Hawk"}},
 	{perr: hawk.ErrNoAuth},
 	{
 		hdr:  `Hawk ts="1353788437", nonce="k3j4h2", mac="/qwS4UjfVWMcUyW6EEgUH4jlr7T/wuKe3dKijvTvSos=", ext="hello"`,
-		perr: hawk.AuthFormatError{"id", "missing or empty"},
+		perr: hawk.AuthFormatError{Field: "id", Err: "missing or empty"},
 	},
 	{
 		hdr:  `Hawk id="123", nonce="k3j4h2", mac="/qwS4UjfVWMcUyW6EEgUH4jlr7T/wuKe3dKijvTvSos=", ext="hello"`,
-		perr: hawk.AuthFormatError{"ts", "missing, empty, or zero"},
+		perr: hawk.AuthFormatError{Field: "ts", Err: "missing, empty, or zero"},
 	},
 	{
 		hdr:  `Hawk id="123", ts="1353788437", mac="/qwS4UjfVWMcUyW6EEgUH4jlr7T/wuKe3dKijvTvSos=", ext="hello"`,
-		perr: hawk.AuthFormatError{"nonce", "missing or empty"},
+		perr: hawk.AuthFormatError{Field: "nonce", Err: "missing or empty"},
 	},
 	{
 		hdr:  `Hawk id="123", ts="1353788437", nonce="k3j4h2", ext="hello"`,
-		perr: hawk.AuthFormatError{"mac", "missing or empty"},
+		perr: hawk.AuthFormatError{Field: "mac", Err: "missing or empty"},
 	},
 	{
 		hdr:  `Hawk id="123\\", ts="1353788437", nonce="k3j4h2", mac="/qwS4UjfVWMcUyW6EEgUH4jlr7T/wuKe3dKijvTvSos=", ext="hello"`,
-		perr: hawk.AuthFormatError{"id", "missing or empty"},
+		perr: hawk.AuthFormatError{Field: "id", Err: "missing or empty"},
 	},
 	{url: "/resource/4?a=1&b=2&bewit=MTIzNDU2XDQ1MTE0ODQ2MjFcMzFjMmNkbUJFd1NJRVZDOVkva1NFb2c3d3YrdEVNWjZ3RXNmOGNHU2FXQT1cc29tZS1hcHAtZGF0YQ"},
 	{url: "/resource/4?bewit=MTIzNDU2XDQ1MTE0ODQ2MjFcMzFjMmNkbUJFd1NJRVZDOVkva1NFb2c3d3YrdEVNWjZ3RXNmOGNHU2FXQT1cc29tZS1hcHAtZGF0YQ&a=1&b=2"},
@@ -181,7 +181,7 @@ var responseAuthHeaderTests = []struct {
 	{err: hawk.ErrMissingServerAuth},
 	{
 		hdr: `Hawk mac="_IJRsMl/4oL+nn+vKoeVZPdCHXB4yJkNnBbTbHFZUYE=", hash="f9cDF/TDm7TkYRLnGwRMfeDzT6LixQVLvrIKhh0vgmM=", ext="response-specific"`,
-		err: hawk.AuthFormatError{"mac", "malformed base64 encoding"},
+		err: hawk.AuthFormatError{Field: "mac", Err: "malformed base64 encoding"},
 	},
 	{
 		hdr: `Hawk mac="XIJRsMl/4oL+nn+vKoeVZPdCHXB4yJkNnBbTbHFZUYE=", hash="f9cDF/TDm7TkYRLnGwRMfeDzT6LixQVLvrIKhh0vgmM=", ext="response-specific"`,
