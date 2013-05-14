@@ -99,7 +99,6 @@ func (a AuthType) String() string {
 	default:
 		return "header"
 	}
-	return "header"
 }
 
 // A CredentialsLookupFunc is called by NewAuthFromRequest after parsing the
