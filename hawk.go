@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"crypto/hmac"
 	"crypto/rand"
-	"crypto/subtle"
 	"encoding/base64"
 	"fmt"
 	"hash"
@@ -445,7 +444,7 @@ func (auth *Auth) Valid() error {
 			return ErrTimestampSkew
 		}
 	}
-	if !hmacEqual(auth.mac(t), auth.MAC) {
+	if !hmac.Equal(auth.mac(t), auth.MAC) {
 		if auth.IsBewit && strings.HasPrefix(auth.RequestURI, "http") && len(auth.RequestURI) > 9 {
 			// try just the path
 			uri := auth.RequestURI
@@ -479,7 +478,7 @@ func (auth *Auth) ValidResponse(header string) error {
 	if err != nil {
 		return err
 	}
-	if !hmacEqual(auth.mac(AuthResponse), auth.MAC) {
+	if !hmac.Equal(auth.mac(AuthResponse), auth.MAC) {
 		return ErrInvalidMAC
 	}
 	return nil
@@ -642,7 +641,7 @@ func (auth *Auth) UpdateOffset(header string) (time.Duration, error) {
 		return 0, AuthFormatError{"error", "missing or unknown"}
 	}
 
-	if !hmacEqual(tsm, auth.tsMac(strconv.FormatInt(ts.Unix(), 10))) {
+	if !hmac.Equal(tsm, auth.tsMac(strconv.FormatInt(ts.Unix(), 10))) {
 		return 0, ErrInvalidMAC
 	}
 
@@ -650,9 +649,4 @@ func (auth *Auth) UpdateOffset(header string) (time.Duration, error) {
 	auth.Timestamp = ts
 	auth.Nonce = nonce()
 	return offset, nil
-}
-
-// Replace with hmac.Equal when Go 1.1 is released
-func hmacEqual(mac1, mac2 []byte) bool {
-	return len(mac1) == len(mac2) && subtle.ConstantTimeCompare(mac1, mac2) == 1
 }
