@@ -1,4 +1,4 @@
-// Package hawk implements the Hawk HTTP authenication scheme.
+// Package hawk implements the Hawk HTTP authentication scheme.
 package hawk
 
 import (
