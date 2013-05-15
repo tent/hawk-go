@@ -4,3 +4,9 @@ hawk-go implements the [Hawk](https://github.com/hueniverse/hawk) HTTP
 authentication scheme in Go.
 
 [**Documentation**](http://godoc.org/github.com/tent/hawk-go)
+
+## Installation
+
+```text
+go get github.com/tent/hawk-go
+```
