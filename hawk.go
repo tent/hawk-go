@@ -512,12 +512,15 @@ func (auth *Auth) SetHash(h hash.Hash) {
 // ResponseHeader to include a hash of the response payload.
 func (auth *Auth) ResponseHeader(ext string) string {
 	auth.Ext = ext
+	if auth.ReqHash {
+		auth.Hash = nil
+	}
 
 	h := `Hawk mac="` + base64.StdEncoding.EncodeToString(auth.mac(AuthResponse)) + `"`
 	if auth.Ext != "" {
 		h += `, ext="` + auth.Ext + `"`
 	}
-	if !auth.ReqHash && auth.Hash != nil {
+	if auth.Hash != nil {
 		h += `, hash="` + base64.StdEncoding.EncodeToString(auth.Hash) + `"`
 	}
 
