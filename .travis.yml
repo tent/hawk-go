@@ -1,8 +1,3 @@
 language: go
 before_install:
   - go get launchpad.net/gocheck
-install:
-  - mkdir -p $GOPATH/src/github.com
-  - mv $HOME/build/tent $GOPATH/src/github.com/
-  - cd $GOPATH/src/github.com/tent/hawk-go
-  - go get -d -v ./... && go build -v ./...
