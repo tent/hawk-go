@@ -56,7 +56,7 @@ func (t CredentialErrorType) String() string {
 	return "unknown id"
 }
 
-// CredentialError is returned by a NonceCheckFunc when the provided credentials
+// CredentialError is returned by a CredentialsLookupFunc when the provided credentials
 // ID is invalid.
 type CredentialError struct {
 	Type        CredentialErrorType
