@@ -249,15 +249,6 @@ func extractReqHostPort(req *http.Request) (host string, port string) {
 	} else {
 		host = req.Host
 	}
-	if req.RemoteAddr != "" && (host == "" || port == "") {
-		addrHost, addrPort, _ := net.SplitHostPort(req.RemoteAddr)
-		if host == "" {
-			host = addrHost
-		}
-		if port == "" {
-			port = addrPort
-		}
-	}
 	if req.URL.Host != "" {
 		if idx := strings.Index(req.Host, ":"); idx != -1 {
 			host, port, _ = net.SplitHostPort(req.Host)
