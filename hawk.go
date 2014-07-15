@@ -224,7 +224,10 @@ func NewAuthFromRequest(req *http.Request, creds CredentialsLookupFunc, nonce No
 	}
 
 	auth.Method = req.Method
-	auth.RequestURI = req.RequestURI
+	auth.RequestURI = req.URL.Path
+	if req.URL.RawQuery != "" {
+		auth.RequestURI += "?" + req.URL.RawQuery
+	}
 	if bewit != "" {
 		auth.Method = "GET"
 		bewitPattern, _ := regexp.Compile(`\?bewit=` + bewit + `\z|bewit=` + bewit + `&|&bewit=` + bewit + `\z`)
