@@ -16,6 +16,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/monsooncommerce/log"
 )
 
 // Now is a func() time.Time that is used by the package to get the current time.
@@ -354,7 +356,30 @@ type Auth struct {
 	ActualTimestamp time.Time
 }
 
-var headerRegex = regexp.MustCompile(`(id|ts|nonce|hash|ext|mac|app|dlg)="([ !#-\[\]-~]+)"`) // character class is ASCII printable [\x20-\x7E] without \ and "
+//var headerRegex = regexp.MustCompile(`(id|ts|nonce|hash|ext|mac|app|dlg)="([ !#-\[\]-~]+)"`) // character class is ASCII printable [\x20-\x7E] without \ and "
+var charClassRegex = regexp.MustCompile(`[ !#-\[\]-~]+`)
+
+func extractValidHeaderKeyValuePairs(header string) [][]string {
+	log.Info("in extractValidHeaderKeyValuePairs")
+	toReturn := [][]string{}
+	splitByEquals := strings.Split(header, "\"")
+	for i, pair := range splitByEquals {
+		if i%2 != 0 || i >= len(splitByEquals)-1 {
+			continue
+		}
+		if !strings.ContainsRune(pair, '=') {
+			continue
+		}
+		keyToSplit := strings.Replace(strings.Replace(pair, ",", "", -1), "=", "", -1)
+		keySplit := strings.Split(keyToSplit, " ")
+		key := keySplit[len(keySplit)-1]
+		value := splitByEquals[i+1]
+		if charClassRegex.Match([]byte(value)) {
+			toReturn = append(toReturn, []string{key, value})
+		}
+	}
+	return toReturn
+}
 
 // ParseHeader parses a Hawk request or response header and populates auth.
 // t must be AuthHeader if the header is an Authorization header from a request
@@ -365,7 +390,8 @@ func (auth *Auth) ParseHeader(header string, t AuthType) error {
 		return AuthFormatError{"scheme", "must be Hawk"}
 	}
 
-	matches := headerRegex.FindAllStringSubmatch(header, 8)
+	//matches := headerRegex.FindAllStringSubmatch(header, 8)
+	matches := extractValidHeaderKeyValuePairs(header)
 
 	var err error
 	for _, match := range matches {
