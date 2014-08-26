@@ -8,6 +8,7 @@ import (
 	"hash"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strconv"
 	"testing"
 	"time"
@@ -254,4 +255,21 @@ func (s *HawkSuite) TestUpdateOffset(c *C) {
 	c.Assert(offset, Equals, 1365741469*time.Second)
 	c.Assert(auth.Timestamp.Unix(), Equals, int64(1365741469))
 	c.Assert(auth.Nonce, HasLen, 8)
+}
+
+var (
+	headerRegex = regexp.MustCompile(`(id|ts|nonce|hash|ext|mac|app|dlg)="([ !#-\[\]-~]+)"`) // character class is ASCII printable [\x20-\x7E] without \ and "
+	header      = `Hawk id="dh37fgj492je", ts="1353832234", nonce="j4h3g2", ext="some-app-ext-data", mac="6R4rV5iE+NPoym+WwjeHzjAGXUtLNIxmo1vpMofpLAE="`
+)
+
+func BenchmarkRegexParser(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		headerRegex.FindAllStringSubmatch(header, 8)
+	}
+}
+
+func BenchmarkSplitterParser(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		hawk.ExtractValidHeaderKeyValuePairs(header)
+	}
 }
