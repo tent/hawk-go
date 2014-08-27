@@ -20,6 +20,8 @@ import (
 
 // Now is a func() time.Time that is used by the package to get the current time.
 var Now = time.Now
+var charClassRegex = regexp.MustCompile(`^[ !#-\[\]-~]+$`)
+var replacer = strings.NewReplacer(",", "", "=", "")
 
 // MaxTimestampSkew is the maximum ±skew that a request timestamp can have without returning ErrTimestampSkew.
 var MaxTimestampSkew = time.Minute
@@ -246,6 +248,46 @@ func NewAuthFromRequest(req *http.Request, creds CredentialsLookupFunc, nonce No
 	return auth, nil
 }
 
+func stringInSlice(str string, sl []string) bool {
+	for _, s := range sl {
+		if str == s {
+			return true
+		}
+	}
+	return false
+}
+
+func ExtractValidHeaderKeyValuePairs(header string) [8][3]string {
+	validKeys := []string{"id", "ts", "nonce", "hash", "ext", "mac", "app", "dlg"}
+	headerSegments := strings.Split(header, `"`)
+	var res [8][3]string
+
+	// because not all keys in the given string will necessarily be valid,r
+	// track index separately from i
+	index := 0
+	for i, pair := range headerSegments {
+		if i%2 != 0 || i >= len(headerSegments)-1 {
+			continue
+		}
+		if !strings.ContainsRune(pair, '=') {
+			continue
+		}
+		keyToSplit := replacer.Replace(pair)
+		keySplit := strings.Split(keyToSplit, " ")
+		key := keySplit[len(keySplit)-1]
+		value := headerSegments[i+1]
+		if stringInSlice(key, validKeys) && charClassRegex.Match([]byte(value)) {
+			var arr [3]string
+			arr[0] = key + "=\"" + value + "\""
+			arr[1] = key
+			arr[2] = value
+			res[index] = arr
+			index++
+		}
+	}
+	return res
+}
+
 func extractReqHostPort(req *http.Request) (host string, port string) {
 	if idx := strings.Index(req.Host, ":"); idx != -1 {
 		host, port, _ = net.SplitHostPort(req.Host)
@@ -354,8 +396,6 @@ type Auth struct {
 	ActualTimestamp time.Time
 }
 
-var headerRegex = regexp.MustCompile(`(id|ts|nonce|hash|ext|mac|app|dlg)="([ !#-\[\]-~]+)"`) // character class is ASCII printable [\x20-\x7E] without \ and "
-
 // ParseHeader parses a Hawk request or response header and populates auth.
 // t must be AuthHeader if the header is an Authorization header from a request
 // or AuthResponse if the header is a Server-Authorization header from
@@ -365,7 +405,7 @@ func (auth *Auth) ParseHeader(header string, t AuthType) error {
 		return AuthFormatError{"scheme", "must be Hawk"}
 	}
 
-	matches := headerRegex.FindAllStringSubmatch(header, 8)
+	matches := ExtractValidHeaderKeyValuePairs(header)
 
 	var err error
 	for _, match := range matches {
