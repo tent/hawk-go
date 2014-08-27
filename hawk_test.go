@@ -273,3 +273,18 @@ func BenchmarkSplitterParser(b *testing.B) {
 		hawk.ExtractValidHeaderKeyValuePairs(header)
 	}
 }
+
+func BenchmarkStringReplace(b *testing.B) {
+	oldString := `Hawk id="dh37fgj492je", ts="1353832234", nonce="j4h3g2", ext="some-app-ext-data", mac="6R4rV5iE+NPoym+WwjeHzjAGXUtLNIxmo1vpMofpLAE="`
+	for i := 0; i < b.N; i++ {
+		strings.Replace(strings.Replace(oldString, ",", "", -1), "=", "", -1)
+	}
+}
+
+func BenchmarkStringReplacer(b *testing.B) {
+	oldString := `Hawk id="dh37fgj492je", ts="1353832234", nonce="j4h3g2", ext="some-app-ext-data", mac="6R4rV5iE+NPoym+WwjeHzjAGXUtLNIxmo1vpMofpLAE="`
+	replacer := strings.NewReplacer(",", "", "=", "")
+	for i := 0; i < b.N; i++ {
+		replacer.Replace(oldString)
+	}
+}

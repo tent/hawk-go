@@ -21,6 +21,7 @@ import (
 // Now is a func() time.Time that is used by the package to get the current time.
 var Now = time.Now
 var charClassRegex = regexp.MustCompile(`^[ !#-\[\]-~]+$`)
+var replacer = strings.NewReplacer(",", "", "=", "")
 
 // MaxTimestampSkew is the maximum ±skew that a request timestamp can have without returning ErrTimestampSkew.
 var MaxTimestampSkew = time.Minute
@@ -247,25 +248,44 @@ func NewAuthFromRequest(req *http.Request, creds CredentialsLookupFunc, nonce No
 	return auth, nil
 }
 
-func ExtractValidHeaderKeyValuePairs(header string) [][]string {
-	toReturn := [][]string{}
-	splitByEquals := strings.Split(header, "\"")
-	for i, pair := range splitByEquals {
-		if i%2 != 0 || i >= len(splitByEquals)-1 {
+func stringInSlice(str string, sl []string) bool {
+	for _, s := range sl {
+		if str == s {
+			return true
+		}
+	}
+	return false
+}
+
+func ExtractValidHeaderKeyValuePairs(header string) [8][3]string {
+	validKeys := []string{"id", "ts", "nonce", "hash", "ext", "mac", "app", "dlg"}
+	headerSegments := strings.Split(header, `"`)
+	var res [8][3]string
+
+	// because not all keys in the given string will necessarily be valid,r
+	// track index separately from i
+	index := 0
+	for i, pair := range headerSegments {
+		if i%2 != 0 || i >= len(headerSegments)-1 {
 			continue
 		}
 		if !strings.ContainsRune(pair, '=') {
 			continue
 		}
-		keyToSplit := strings.Replace(strings.Replace(pair, ",", "", -1), "=", "", -1)
+		keyToSplit := replacer.Replace(pair)
 		keySplit := strings.Split(keyToSplit, " ")
 		key := keySplit[len(keySplit)-1]
-		value := splitByEquals[i+1]
-		if charClassRegex.Match([]byte(value)) {
-			toReturn = append(toReturn, []string{key + "=\"" + value + "\"", key, value})
+		value := headerSegments[i+1]
+		if stringInSlice(key, validKeys) && charClassRegex.Match([]byte(value)) {
+			var arr [3]string
+			arr[0] = key + "=\"" + value + "\""
+			arr[1] = key
+			arr[2] = value
+			res[index] = arr
+			index++
 		}
 	}
-	return toReturn
+	return res
 }
 
 func extractReqHostPort(req *http.Request) (host string, port string) {
