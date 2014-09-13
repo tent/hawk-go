@@ -8,6 +8,7 @@ import (
 	"hash"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strconv"
 	"testing"
 	"time"
@@ -89,7 +90,17 @@ var requestAuthTests = []struct {
 	},
 	{
 		hdr:  `Hawk id="123\\", ts="1353788437", nonce="k3j4h2", mac="/qwS4UjfVWMcUyW6EEgUH4jlr7T/wuKe3dKijvTvSos=", ext="hello"`,
-		perr: hawk.AuthFormatError{Field: "id", Err: "missing or empty"},
+		perr: hawk.AuthFormatError{Field: "id", Err: "cannot parse value"},
+	},
+	{
+		// eol in value for ext
+		hdr:  `Hawk id="123", ts="1353788437", nonce="k3j4h2", ext="hel`,
+		perr: hawk.AuthFormatError{Field: "ext", Err: "cannot parse value"},
+	},
+	{
+		// eol in key for nonce
+		hdr:  `Hawk id="123", ts="1353788437", no`,
+		perr: hawk.AuthFormatError{Field: "header", Err: "cannot parse header field"},
 	},
 	{url: "/resource/4?a=1&b=2&bewit=MTIzNDU2XDQ1MTE0ODQ2MjFcMzFjMmNkbUJFd1NJRVZDOVkva1NFb2c3d3YrdEVNWjZ3RXNmOGNHU2FXQT1cc29tZS1hcHAtZGF0YQ"},
 	{url: "/resource/4?bewit=MTIzNDU2XDQ1MTE0ODQ2MjFcMzFjMmNkbUJFd1NJRVZDOVkva1NFb2c3d3YrdEVNWjZ3RXNmOGNHU2FXQT1cc29tZS1hcHAtZGF0YQ&a=1&b=2"},
@@ -254,4 +265,20 @@ func (s *HawkSuite) TestUpdateOffset(c *C) {
 	c.Assert(offset, Equals, 1365741469*time.Second)
 	c.Assert(auth.Timestamp.Unix(), Equals, int64(1365741469))
 	c.Assert(auth.Nonce, HasLen, 8)
+}
+
+var header = `Hawk id="dh37fgj492je", ts="1353832234", nonce="j4h3g2", ext="some-app-ext-data", mac="6R4rV5iE+NPoym+WwjeHzjAGXUtLNIxmo1vpMofpLAE="`
+
+func BenchmarkRegexParser(b *testing.B) {
+	// headerRegex function previously used to parse headers
+	headerRegex := regexp.MustCompile(`(id|ts|nonce|hash|ext|mac|app|dlg)="([ !#-\[\]-~]+)"`)
+	for i := 0; i < b.N; i++ {
+		headerRegex.FindAllStringSubmatch(header, 8)
+	}
+}
+
+func BenchmarkLexingParser(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		hawk.LexHeader(header[4:])
+	}
 }
