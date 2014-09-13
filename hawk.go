@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 )
 
 // Now is a func() time.Time that is used by the package to get the current time.
@@ -354,7 +355,68 @@ type Auth struct {
 	ActualTimestamp time.Time
 }
 
-var headerRegex = regexp.MustCompile(`(id|ts|nonce|hash|ext|mac|app|dlg)="([ !#-\[\]-~]+)"`) // character class is ASCII printable [\x20-\x7E] without \ and "
+// field is of form: key="value"
+func lexField(r *strings.Reader) (string, string, error) {
+	key := make([]rune, 0, 5)
+	val := make([]rune, 0, 32)
+
+	// read the key
+	for {
+		ch, _, _ := r.ReadRune()
+		if ch == '=' {
+			break
+		}
+		if !unicode.IsLower(ch) {
+			return "", "", AuthFormatError{"header", "cannot parse header field"}
+		}
+		key = append(key, ch)
+	}
+	ch, _, _ := r.ReadRune()
+	if ch != '"' {
+		return "", "", AuthFormatError{string(key), "cannot parse value"}
+	}
+	// read the value
+	for {
+		ch, _, _ := r.ReadRune()
+		if ch == '"' {
+			break
+		}
+		// character class is ASCII printable [\x20-\x7E] without \ and "
+		if ch > unicode.MaxASCII || !strconv.IsPrint(ch) || ch == '\\' {
+			return "", "", AuthFormatError{string(key), "cannot parse value"}
+		}
+		val = append(val, ch)
+	}
+
+	return string(key), string(val), nil
+}
+
+func LexHeader(header string) (map[string]string, error) {
+	params := make(map[string]string, 8)
+
+	r := strings.NewReader(header)
+
+	for {
+		ch, _, eof := r.ReadRune()
+		if eof != nil {
+			break
+		}
+
+		switch {
+		case unicode.IsSpace(ch) || ch == ',': //ignore spaces and commas
+		case unicode.IsLower(ch): //beginning of key/value pair like 'id="abcdefg"'
+			r.UnreadRune()
+			key, val, err := lexField(r)
+			if err != nil {
+				return params, err
+			}
+			params[key] = val
+		default: //invalid character encountered
+			return params, AuthFormatError{"header", "cannot parse header"}
+		}
+	}
+	return params, nil
+}
 
 // ParseHeader parses a Hawk request or response header and populates auth.
 // t must be AuthHeader if the header is an Authorization header from a request
@@ -365,51 +427,43 @@ func (auth *Auth) ParseHeader(header string, t AuthType) error {
 		return AuthFormatError{"scheme", "must be Hawk"}
 	}
 
-	matches := headerRegex.FindAllStringSubmatch(header, 8)
-
-	var err error
-	for _, match := range matches {
-		switch match[1] {
-		case "hash":
-			auth.Hash, err = base64.StdEncoding.DecodeString(match[2])
-			if err != nil {
-				return AuthFormatError{"hash", "malformed base64 encoding"}
-			}
-		case "ext":
-			auth.Ext = match[2]
-		case "mac":
-			auth.MAC, err = base64.StdEncoding.DecodeString(match[2])
-			if err != nil {
-				return AuthFormatError{"mac", "malformed base64 encoding"}
-			}
-		default:
-			if t == AuthHeader {
-				switch match[1] {
-				case "app":
-					auth.Credentials.App = match[2]
-				case "dlg":
-					auth.Credentials.Delegate = match[2]
-				case "id":
-					auth.Credentials.ID = match[2]
-				case "ts":
-					ts, err := strconv.ParseInt(match[2], 10, 64)
-					if err != nil {
-						return AuthFormatError{"ts", "not an integer"}
-					}
-					auth.Timestamp = time.Unix(ts, 0)
-				case "nonce":
-					auth.Nonce = match[2]
-
-				}
-			}
-		}
-
+	fields, err := LexHeader(header[4:])
+	if err != nil {
+		return err
 	}
 
-	if len(auth.MAC) == 0 {
+	hash, ok := fields["hash"]
+	if ok {
+		auth.Hash, err = base64.StdEncoding.DecodeString(hash)
+		if err != nil {
+			return AuthFormatError{"hash", "malformed base64 encoding"}
+		}
+	}
+	auth.Ext, _ = fields["ext"]
+
+	mac, _ := fields["mac"]
+	if len(mac) == 0 {
 		return AuthFormatError{"mac", "missing or empty"}
 	}
+	auth.MAC, err = base64.StdEncoding.DecodeString(mac)
+	if err != nil {
+		return AuthFormatError{"mac", "malformed base64 encoding"}
+	}
+	if t == AuthHeader {
+		auth.Credentials.App, _ = fields["app"]
+		auth.Credentials.Delegate, _ = fields["dlg"]
+		auth.Credentials.ID, _ = fields["id"]
 
+		ts, ok := fields["ts"]
+		if ok {
+			tsint, err := strconv.ParseInt(ts, 10, 64)
+			if err != nil {
+				return AuthFormatError{"ts", "not an integer"}
+			}
+			auth.Timestamp = time.Unix(tsint, 0)
+		}
+		auth.Nonce, _ = fields["nonce"]
+	}
 	return nil
 }
 
