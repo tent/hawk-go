@@ -16,7 +16,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode"
 )
 
 // Now is a func() time.Time that is used by the package to get the current time.
@@ -357,32 +356,32 @@ type Auth struct {
 
 // field is of form: key="value"
 func lexField(r *strings.Reader) (string, string, error) {
-	key := make([]rune, 0, 5)
-	val := make([]rune, 0, 32)
+	key := make([]byte, 0, 5)
+	val := make([]byte, 0, 32)
 
 	// read the key
 	for {
-		ch, _, _ := r.ReadRune()
+		ch, _ := r.ReadByte()
 		if ch == '=' {
 			break
 		}
-		if !unicode.IsLower(ch) {
+		if ch < 'a' || ch > 'z' { // fail if not ASCII lowercase letter
 			return "", "", AuthFormatError{"header", "cannot parse header field"}
 		}
 		key = append(key, ch)
 	}
-	ch, _, _ := r.ReadRune()
+	ch, _ := r.ReadByte()
 	if ch != '"' {
 		return "", "", AuthFormatError{string(key), "cannot parse value"}
 	}
 	// read the value
 	for {
-		ch, _, _ := r.ReadRune()
+		ch, _ := r.ReadByte()
 		if ch == '"' {
 			break
 		}
 		// character class is ASCII printable [\x20-\x7E] without \ and "
-		if ch > unicode.MaxASCII || !strconv.IsPrint(ch) || ch == '\\' {
+		if ch < 0x20 || ch > 0x7E || ch == '\\' {
 			return "", "", AuthFormatError{string(key), "cannot parse value"}
 		}
 		val = append(val, ch)
@@ -397,15 +396,15 @@ func LexHeader(header string) (map[string]string, error) {
 	r := strings.NewReader(header)
 
 	for {
-		ch, _, eof := r.ReadRune()
+		ch, eof := r.ReadByte()
 		if eof != nil {
 			break
 		}
 
 		switch {
-		case unicode.IsSpace(ch) || ch == ',': //ignore spaces and commas
-		case unicode.IsLower(ch): //beginning of key/value pair like 'id="abcdefg"'
-			r.UnreadRune()
+		case ch == ' ' || ch == '\t' || ch == ',': //ignore spaces and commas
+		case ch >= 'a' && ch <= 'z': //beginning of key/value pair like 'id="abcdefg"'
+			r.UnreadByte()
 			key, val, err := lexField(r)
 			if err != nil {
 				return params, err
