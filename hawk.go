@@ -431,17 +431,16 @@ func (auth *Auth) ParseHeader(header string, t AuthType) error {
 		return err
 	}
 
-	hash, ok := fields["hash"]
-	if ok {
+	if hash, ok := fields["hash"]; ok {
 		auth.Hash, err = base64.StdEncoding.DecodeString(hash)
 		if err != nil {
 			return AuthFormatError{"hash", "malformed base64 encoding"}
 		}
 	}
-	auth.Ext, _ = fields["ext"]
+	auth.Ext = fields["ext"]
 
-	mac, _ := fields["mac"]
-	if len(mac) == 0 {
+	mac := fields["mac"]
+	if mac == "" {
 		return AuthFormatError{"mac", "missing or empty"}
 	}
 	auth.MAC, err = base64.StdEncoding.DecodeString(mac)
@@ -449,19 +448,18 @@ func (auth *Auth) ParseHeader(header string, t AuthType) error {
 		return AuthFormatError{"mac", "malformed base64 encoding"}
 	}
 	if t == AuthHeader {
-		auth.Credentials.App, _ = fields["app"]
-		auth.Credentials.Delegate, _ = fields["dlg"]
-		auth.Credentials.ID, _ = fields["id"]
+		auth.Credentials.App = fields["app"]
+		auth.Credentials.Delegate = fields["dlg"]
+		auth.Credentials.ID = fields["id"]
 
-		ts, ok := fields["ts"]
-		if ok {
+		if ts, ok := fields["ts"]; ok {
 			tsint, err := strconv.ParseInt(ts, 10, 64)
 			if err != nil {
 				return AuthFormatError{"ts", "not an integer"}
 			}
 			auth.Timestamp = time.Unix(tsint, 0)
 		}
-		auth.Nonce, _ = fields["nonce"]
+		auth.Nonce = fields["nonce"]
 	}
 	return nil
 }
