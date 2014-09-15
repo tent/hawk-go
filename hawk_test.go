@@ -1,10 +1,9 @@
-package hawk_test
+package hawk
 
 import (
 	"crypto/sha1"
 	"crypto/sha256"
 	"encoding/base64"
-	"github.com/tent/hawk-go"
 	"hash"
 	"net/http"
 	"net/url"
@@ -44,13 +43,13 @@ var requestAuthTests = []struct {
 		hdr:  `Hawk id="1", ts="1353788437", nonce="k3j4h2", mac="zy79QQ5/EYFmQqutVnYb73gAc/U=", ext="hello"`,
 		key:  "a",
 		hash: sha1.New,
-		verr: hawk.ErrInvalidMAC,
+		verr: ErrInvalidMAC,
 	},
 	{
 		hdr:  `Hawk id="1", ts="1353788437", nonce="k3j4h2", mac="zy79QQ5/EYFmQqutVnYb73gAc/U=", ext="hello"`,
 		hash: sha1.New,
 		rply: true,
-		perr: hawk.ErrReplay,
+		perr: ErrReplay,
 	},
 	{
 		hdr:  `Hawk id="dh37fgj492je", ts="1353832234", nonce="j4h3g2", mac="m8r1rHbXN6NgO+KIIhjO7sFRyd78RNGVUwehe8Cp2dU=", ext="some-app-data"`,
@@ -67,40 +66,40 @@ var requestAuthTests = []struct {
 		hdr:  `Hawk id="123456", ts="1362337299", nonce="UzmxSs", ext="some-app-data", mac="wnNUxchvvryMH2RxckTdZ/gY3ijzvccx4keVvELC61w="`,
 		now:  time.Now().Unix(),
 		port: 8000,
-		verr: hawk.ErrTimestampSkew,
+		verr: ErrTimestampSkew,
 	},
-	{hdr: "Basic asdasdasdasd", perr: hawk.AuthFormatError{Field: "scheme", Err: "must be Hawk"}},
-	{hdr: "a", perr: hawk.AuthFormatError{Field: "scheme", Err: "must be Hawk"}},
-	{perr: hawk.ErrNoAuth},
+	{hdr: "Basic asdasdasdasd", perr: AuthFormatError{Field: "scheme", Err: "must be Hawk"}},
+	{hdr: "a", perr: AuthFormatError{Field: "scheme", Err: "must be Hawk"}},
+	{perr: ErrNoAuth},
 	{
 		hdr:  `Hawk ts="1353788437", nonce="k3j4h2", mac="/qwS4UjfVWMcUyW6EEgUH4jlr7T/wuKe3dKijvTvSos=", ext="hello"`,
-		perr: hawk.AuthFormatError{Field: "id", Err: "missing or empty"},
+		perr: AuthFormatError{Field: "id", Err: "missing or empty"},
 	},
 	{
 		hdr:  `Hawk id="123", nonce="k3j4h2", mac="/qwS4UjfVWMcUyW6EEgUH4jlr7T/wuKe3dKijvTvSos=", ext="hello"`,
-		perr: hawk.AuthFormatError{Field: "ts", Err: "missing, empty, or zero"},
+		perr: AuthFormatError{Field: "ts", Err: "missing, empty, or zero"},
 	},
 	{
 		hdr:  `Hawk id="123", ts="1353788437", mac="/qwS4UjfVWMcUyW6EEgUH4jlr7T/wuKe3dKijvTvSos=", ext="hello"`,
-		perr: hawk.AuthFormatError{Field: "nonce", Err: "missing or empty"},
+		perr: AuthFormatError{Field: "nonce", Err: "missing or empty"},
 	},
 	{
 		hdr:  `Hawk id="123", ts="1353788437", nonce="k3j4h2", ext="hello"`,
-		perr: hawk.AuthFormatError{Field: "mac", Err: "missing or empty"},
+		perr: AuthFormatError{Field: "mac", Err: "missing or empty"},
 	},
 	{
 		hdr:  `Hawk id="123\\", ts="1353788437", nonce="k3j4h2", mac="/qwS4UjfVWMcUyW6EEgUH4jlr7T/wuKe3dKijvTvSos=", ext="hello"`,
-		perr: hawk.AuthFormatError{Field: "id", Err: "cannot parse value"},
+		perr: AuthFormatError{Field: "id", Err: "cannot parse value"},
 	},
 	{
 		// eol in value for ext
 		hdr:  `Hawk id="123", ts="1353788437", nonce="k3j4h2", ext="hel`,
-		perr: hawk.AuthFormatError{Field: "ext", Err: "cannot parse value"},
+		perr: AuthFormatError{Field: "ext", Err: "cannot parse value"},
 	},
 	{
 		// eol in key for nonce
 		hdr:  `Hawk id="123", ts="1353788437", no`,
-		perr: hawk.AuthFormatError{Field: "header", Err: "cannot parse header field"},
+		perr: AuthFormatError{Field: "header", Err: "cannot parse header field"},
 	},
 	{url: "/resource/4?a=1&b=2&bewit=MTIzNDU2XDQ1MTE0ODQ2MjFcMzFjMmNkbUJFd1NJRVZDOVkva1NFb2c3d3YrdEVNWjZ3RXNmOGNHU2FXQT1cc29tZS1hcHAtZGF0YQ"},
 	{url: "/resource/4?bewit=MTIzNDU2XDQ1MTE0ODQ2MjFcMzFjMmNkbUJFd1NJRVZDOVkva1NFb2c3d3YrdEVNWjZ3RXNmOGNHU2FXQT1cc29tZS1hcHAtZGF0YQ&a=1&b=2"},
@@ -111,7 +110,7 @@ var requestAuthTests = []struct {
 	},
 	{
 		url:  "/resource/4?a=1&b=2&bewit=MTIzNDU2XDEzNTY0MTg1ODNcWk1wZlMwWU5KNHV0WHpOMmRucTRydEk3NXNXTjFjeWVITTcrL0tNZFdVQT1cc29tZS1hcHAtZGF0YQ",
-		verr: hawk.ErrBewitExpired,
+		verr: ErrBewitExpired,
 		now:  time.Now().Unix(),
 	},
 }
@@ -120,8 +119,8 @@ func now(ts int64) func() time.Time {
 	return func() time.Time { return time.Unix(ts, 0) }
 }
 
-func creds(key string, h func() hash.Hash) hawk.CredentialsLookupFunc {
-	return func(creds *hawk.Credentials) error {
+func creds(key string, h func() hash.Hash) CredentialsLookupFunc {
+	return func(creds *Credentials) error {
 		creds.Key = key
 		creds.Hash = h
 		return nil
@@ -151,8 +150,8 @@ func (s *HawkSuite) TestRequestAuth(c *C) {
 		if test.key == "" {
 			test.key = "werxhqb98rpaxn39848xrunpaw3489ruxnpa98w4rxn"
 		}
-		hawk.Now = now(test.now)
-		nonce := func(string, time.Time, *hawk.Credentials) bool { return !test.rply }
+		Now = now(test.now)
+		nonce := func(string, time.Time, *Credentials) bool { return !test.rply }
 
 		req := &http.Request{
 			Method:     test.meth,
@@ -162,20 +161,20 @@ func (s *HawkSuite) TestRequestAuth(c *C) {
 		}
 		var err error
 		req.URL, err = url.Parse(test.url)
-		auth, err := hawk.NewAuthFromRequest(req, creds(test.key, test.hash), nonce)
+		auth, err := NewAuthFromRequest(req, creds(test.key, test.hash), nonce)
 		c.Assert(err, DeepEquals, test.perr, Commentf("test %d", i))
 
 		if err == nil {
 			err = auth.Valid()
-			c.Assert(err, DeepEquals, test.verr, Commentf("test %d, %#v", i, auth.NormalizedString(hawk.AuthHeader)))
+			c.Assert(err, DeepEquals, test.verr, Commentf("test %d, %#v", i, auth.NormalizedString(AuthHeader)))
 		}
 	}
 }
 
 func (s *HawkSuite) TestRequestSigning(c *C) {
 	u, _ := url.Parse("https://example.net/somewhere/over/the/rainbow")
-	auth := hawk.NewRequestAuth(&http.Request{URL: u, Method: "POST"},
-		&hawk.Credentials{ID: "123456", Key: "2983d45yun89q", Hash: sha256.New}, 0)
+	auth := NewRequestAuth(&http.Request{URL: u, Method: "POST"},
+		&Credentials{ID: "123456", Key: "2983d45yun89q", Hash: sha256.New}, 0)
 	auth.Nonce = "Ygvqdz"
 	auth.Ext = "Bazinga!"
 	auth.Timestamp = time.Unix(1353809207, 0)
@@ -189,10 +188,10 @@ var responseAuthHeaderTests = []struct {
 	hdr string
 	err error
 }{
-	{err: hawk.ErrMissingServerAuth},
+	{err: ErrMissingServerAuth},
 	{
 		hdr: `Hawk mac="_IJRsMl/4oL+nn+vKoeVZPdCHXB4yJkNnBbTbHFZUYE=", hash="f9cDF/TDm7TkYRLnGwRMfeDzT6LixQVLvrIKhh0vgmM=", ext="response-specific"`,
-		err: hawk.AuthFormatError{Field: "mac", Err: "malformed base64 encoding"},
+		err: AuthFormatError{Field: "mac", Err: "malformed base64 encoding"},
 	},
 	{
 		hdr: `Hawk mac="XIJRsMl/4oL+nn+vKoeVZPdCHXB4yJkNnBbTbHFZUYE=", hash="f9cDF/TDm7TkYRLnGwRMfeDzT6LixQVLvrIKhh0vgmM=", ext="response-specific"`,
@@ -200,7 +199,7 @@ var responseAuthHeaderTests = []struct {
 }
 
 func (s *HawkSuite) TestResponseAuth(c *C) {
-	auth := &hawk.Auth{
+	auth := &Auth{
 		Method:      "POST",
 		Host:        "example.com",
 		Port:        "8080",
@@ -208,7 +207,7 @@ func (s *HawkSuite) TestResponseAuth(c *C) {
 		Nonce:       "eb5S_L",
 		Ext:         "some-app-data",
 		Timestamp:   time.Unix(1362336900, 0),
-		Credentials: hawk.Credentials{ID: "123456", Key: "werxhqb98rpaxn39848xrunpaw3489ruxnpa98w4rxn", Hash: sha256.New},
+		Credentials: Credentials{ID: "123456", Key: "werxhqb98rpaxn39848xrunpaw3489ruxnpa98w4rxn", Hash: sha256.New},
 	}
 
 	for i, test := range responseAuthHeaderTests {
@@ -218,7 +217,7 @@ func (s *HawkSuite) TestResponseAuth(c *C) {
 }
 
 func (s *HawkSuite) TestResponseHeader(c *C) {
-	auth := &hawk.Auth{
+	auth := &Auth{
 		Method:      "POST",
 		Host:        "example.com",
 		Port:        "8080",
@@ -226,14 +225,14 @@ func (s *HawkSuite) TestResponseHeader(c *C) {
 		Nonce:       "eb5S_L",
 		Ext:         "foo",
 		Timestamp:   time.Unix(1362336900, 0),
-		Credentials: hawk.Credentials{ID: "123456", Key: "werxhqb98rpaxn39848xrunpaw3489ruxnpa98w4rxn", Hash: sha256.New},
+		Credentials: Credentials{ID: "123456", Key: "werxhqb98rpaxn39848xrunpaw3489ruxnpa98w4rxn", Hash: sha256.New},
 	}
 	auth.Hash, _ = base64.StdEncoding.DecodeString("f9cDF/TDm7TkYRLnGwRMfeDzT6LixQVLvrIKhh0vgmM=")
 	c.Assert(auth.ResponseHeader("response-specific"), Equals, `Hawk mac="XIJRsMl/4oL+nn+vKoeVZPdCHXB4yJkNnBbTbHFZUYE=", ext="response-specific", hash="f9cDF/TDm7TkYRLnGwRMfeDzT6LixQVLvrIKhh0vgmM="`)
 }
 
 func (s *HawkSuite) TestValidHash(c *C) {
-	auth := &hawk.Auth{Credentials: hawk.Credentials{Hash: sha256.New}}
+	auth := &Auth{Credentials: Credentials{Hash: sha256.New}}
 	auth.Hash, _ = base64.StdEncoding.DecodeString("2QfCt3GuY9HQnHWyWD3wX68ZOKbynqlfYmuO2ZBRqtY=")
 	h := auth.PayloadHash("text/plain")
 	h.Write([]byte("something to write about"))
@@ -244,22 +243,22 @@ func (s *HawkSuite) TestValidHash(c *C) {
 
 func (s *HawkSuite) TestBewit(c *C) {
 	u, _ := url.Parse("https://example.com/somewhere/over/the/rainbow")
-	auth := hawk.NewRequestAuth(&http.Request{URL: u},
-		&hawk.Credentials{ID: "123456", Key: "2983d45yun89q", Hash: sha256.New}, 0)
+	auth := NewRequestAuth(&http.Request{URL: u},
+		&Credentials{ID: "123456", Key: "2983d45yun89q", Hash: sha256.New}, 0)
 	auth.Ext = "xandyandz"
 	auth.Timestamp = time.Unix(1356420707, 0)
 	c.Assert(auth.Bewit(), Equals, "MTIzNDU2XDEzNTY0MjA3MDdca3NjeHdOUjJ0SnBQMVQxekRMTlBiQjVVaUtJVTl0T1NKWFRVZEc3WDloOD1ceGFuZHlhbmR6")
 }
 
 func (s *HawkSuite) TestStaleHeader(c *C) {
-	hawk.Now = now(1365741469)
-	auth := &hawk.Auth{Credentials: hawk.Credentials{Key: "werxhqb98rpaxn39848xrunpaw3489ruxnpa98w4rxn", Hash: sha256.New}}
+	Now = now(1365741469)
+	auth := &Auth{Credentials: Credentials{Key: "werxhqb98rpaxn39848xrunpaw3489ruxnpa98w4rxn", Hash: sha256.New}}
 	c.Assert(auth.StaleTimestampHeader(), Equals, `Hawk ts="1365741469", tsm="b4Qqhz8OUBq21saghHLV1ktwlXE72T1xtTEZkSlWizA=", error="Stale timestamp"`)
 }
 
 func (s *HawkSuite) TestUpdateOffset(c *C) {
-	hawk.Now = now(0)
-	auth := &hawk.Auth{Credentials: hawk.Credentials{Key: "werxhqb98rpaxn39848xrunpaw3489ruxnpa98w4rxn", Hash: sha256.New}}
+	Now = now(0)
+	auth := &Auth{Credentials: Credentials{Key: "werxhqb98rpaxn39848xrunpaw3489ruxnpa98w4rxn", Hash: sha256.New}}
 	offset, err := auth.UpdateOffset(`Hawk ts="1365741469", tsm="b4Qqhz8OUBq21saghHLV1ktwlXE72T1xtTEZkSlWizA=", error="Stale timestamp"`)
 	c.Assert(err, IsNil)
 	c.Assert(offset, Equals, 1365741469*time.Second)
@@ -279,6 +278,6 @@ func BenchmarkRegexParser(b *testing.B) {
 
 func BenchmarkLexingParser(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		hawk.LexHeader(header[4:])
+		LexHeader(header[4:])
 	}
 }
