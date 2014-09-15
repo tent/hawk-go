@@ -370,8 +370,7 @@ func lexField(r *strings.Reader) (string, string, error) {
 		}
 		key = append(key, ch)
 	}
-	ch, _ := r.ReadByte()
-	if ch != '"' {
+	if ch, _ := r.ReadByte(); ch != '"' {
 		return "", "", AuthFormatError{string(key), "cannot parse value"}
 	}
 	// read the value
@@ -390,7 +389,7 @@ func lexField(r *strings.Reader) (string, string, error) {
 	return string(key), string(val), nil
 }
 
-func LexHeader(header string) (map[string]string, error) {
+func lexHeader(header string) (map[string]string, error) {
 	params := make(map[string]string, 8)
 
 	r := strings.NewReader(header)
@@ -426,7 +425,7 @@ func (auth *Auth) ParseHeader(header string, t AuthType) error {
 		return AuthFormatError{"scheme", "must be Hawk"}
 	}
 
-	fields, err := LexHeader(header[4:])
+	fields, err := lexHeader(header[4:])
 	if err != nil {
 		return err
 	}

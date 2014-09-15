@@ -278,6 +278,6 @@ func BenchmarkRegexParser(b *testing.B) {
 
 func BenchmarkLexingParser(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		LexHeader(header[4:])
+		lexHeader(header[4:])
 	}
 }
