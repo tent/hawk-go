@@ -354,7 +354,67 @@ type Auth struct {
 	ActualTimestamp time.Time
 }
 
-var headerRegex = regexp.MustCompile(`(id|ts|nonce|hash|ext|mac|app|dlg)="([ !#-\[\]-~]+)"`) // character class is ASCII printable [\x20-\x7E] without \ and "
+// field is of form: key="value"
+func lexField(r *strings.Reader) (string, string, error) {
+	key := make([]byte, 0, 5)
+	val := make([]byte, 0, 32)
+
+	// read the key
+	for {
+		ch, _ := r.ReadByte()
+		if ch == '=' {
+			break
+		}
+		if ch < 'a' || ch > 'z' { // fail if not ASCII lowercase letter
+			return "", "", AuthFormatError{"header", "cannot parse header field"}
+		}
+		key = append(key, ch)
+	}
+	if ch, _ := r.ReadByte(); ch != '"' {
+		return "", "", AuthFormatError{string(key), "cannot parse value"}
+	}
+	// read the value
+	for {
+		ch, _ := r.ReadByte()
+		if ch == '"' {
+			break
+		}
+		// character class is ASCII printable [\x20-\x7E] without \ and "
+		if ch < 0x20 || ch > 0x7E || ch == '\\' {
+			return "", "", AuthFormatError{string(key), "cannot parse value"}
+		}
+		val = append(val, ch)
+	}
+
+	return string(key), string(val), nil
+}
+
+func lexHeader(header string) (map[string]string, error) {
+	params := make(map[string]string, 8)
+
+	r := strings.NewReader(header)
+
+	for {
+		ch, eof := r.ReadByte()
+		if eof != nil {
+			break
+		}
+
+		switch {
+		case ch == ' ' || ch == '\t' || ch == ',': //ignore spaces and commas
+		case ch >= 'a' && ch <= 'z': //beginning of key/value pair like 'id="abcdefg"'
+			r.UnreadByte()
+			key, val, err := lexField(r)
+			if err != nil {
+				return params, err
+			}
+			params[key] = val
+		default: //invalid character encountered
+			return params, AuthFormatError{"header", "cannot parse header"}
+		}
+	}
+	return params, nil
+}
 
 // ParseHeader parses a Hawk request or response header and populates auth.
 // t must be AuthHeader if the header is an Authorization header from a request
@@ -365,51 +425,41 @@ func (auth *Auth) ParseHeader(header string, t AuthType) error {
 		return AuthFormatError{"scheme", "must be Hawk"}
 	}
 
-	matches := headerRegex.FindAllStringSubmatch(header, 8)
-
-	var err error
-	for _, match := range matches {
-		switch match[1] {
-		case "hash":
-			auth.Hash, err = base64.StdEncoding.DecodeString(match[2])
-			if err != nil {
-				return AuthFormatError{"hash", "malformed base64 encoding"}
-			}
-		case "ext":
-			auth.Ext = match[2]
-		case "mac":
-			auth.MAC, err = base64.StdEncoding.DecodeString(match[2])
-			if err != nil {
-				return AuthFormatError{"mac", "malformed base64 encoding"}
-			}
-		default:
-			if t == AuthHeader {
-				switch match[1] {
-				case "app":
-					auth.Credentials.App = match[2]
-				case "dlg":
-					auth.Credentials.Delegate = match[2]
-				case "id":
-					auth.Credentials.ID = match[2]
-				case "ts":
-					ts, err := strconv.ParseInt(match[2], 10, 64)
-					if err != nil {
-						return AuthFormatError{"ts", "not an integer"}
-					}
-					auth.Timestamp = time.Unix(ts, 0)
-				case "nonce":
-					auth.Nonce = match[2]
-
-				}
-			}
-		}
-
+	fields, err := lexHeader(header[4:])
+	if err != nil {
+		return err
 	}
 
-	if len(auth.MAC) == 0 {
+	if hash, ok := fields["hash"]; ok {
+		auth.Hash, err = base64.StdEncoding.DecodeString(hash)
+		if err != nil {
+			return AuthFormatError{"hash", "malformed base64 encoding"}
+		}
+	}
+	auth.Ext = fields["ext"]
+
+	mac := fields["mac"]
+	if mac == "" {
 		return AuthFormatError{"mac", "missing or empty"}
 	}
+	auth.MAC, err = base64.StdEncoding.DecodeString(mac)
+	if err != nil {
+		return AuthFormatError{"mac", "malformed base64 encoding"}
+	}
+	if t == AuthHeader {
+		auth.Credentials.App = fields["app"]
+		auth.Credentials.Delegate = fields["dlg"]
+		auth.Credentials.ID = fields["id"]
 
+		if ts, ok := fields["ts"]; ok {
+			tsint, err := strconv.ParseInt(ts, 10, 64)
+			if err != nil {
+				return AuthFormatError{"ts", "not an integer"}
+			}
+			auth.Timestamp = time.Unix(tsint, 0)
+		}
+		auth.Nonce = fields["nonce"]
+	}
 	return nil
 }
 
