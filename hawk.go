@@ -224,10 +224,7 @@ func NewAuthFromRequest(req *http.Request, creds CredentialsLookupFunc, nonce No
 	}
 
 	auth.Method = req.Method
-	auth.RequestURI = req.URL.Path
-	if req.URL.RawQuery != "" {
-		auth.RequestURI += "?" + req.URL.RawQuery
-	}
+	auth.RequestURI = extractRequestURI(req)
 	if bewit != "" {
 		auth.Method = "GET"
 		bewitPattern, _ := regexp.Compile(`\?bewit=` + bewit + `\z|bewit=` + bewit + `&|&bewit=` + bewit + `\z`)
@@ -269,6 +266,14 @@ func extractReqHostPort(req *http.Request) (host string, port string) {
 	return
 }
 
+func extractRequestURI(req *http.Request) string {
+	uri := req.URL.Path
+	if req.URL.RawQuery != "" {
+		uri += "?" + req.URL.RawQuery
+	}
+	return uri
+}
+
 // NewRequestAuth builds a client Auth based on req and creds. tsOffset will be
 // applied to Now when setting the timestamp.
 func NewRequestAuth(req *http.Request, creds *Credentials, tsOffset time.Duration) *Auth {
@@ -277,7 +282,7 @@ func NewRequestAuth(req *http.Request, creds *Credentials, tsOffset time.Duratio
 		Credentials: *creds,
 		Timestamp:   Now().Add(tsOffset),
 		Nonce:       nonce(),
-		RequestURI:  req.URL.RequestURI(),
+		RequestURI:  extractRequestURI(req),
 	}
 	auth.Host, auth.Port = extractReqHostPort(req)
 	return auth

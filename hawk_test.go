@@ -171,8 +171,7 @@ func (s *HawkSuite) TestRequestAuth(c *C) {
 	}
 }
 
-func (s *HawkSuite) TestRequestSigning(c *C) {
-	u, _ := url.Parse("https://example.net/somewhere/over/the/rainbow")
+func testRequestSigning(u *url.URL, c *C) {
 	auth := NewRequestAuth(&http.Request{URL: u, Method: "POST"},
 		&Credentials{ID: "123456", Key: "2983d45yun89q", Hash: sha256.New}, 0)
 	auth.Nonce = "Ygvqdz"
@@ -182,6 +181,18 @@ func (s *HawkSuite) TestRequestSigning(c *C) {
 	h.Write([]byte("something to write about"))
 	auth.SetHash(h)
 	c.Assert(auth.RequestHeader(), Equals, `Hawk id="123456", mac="q1CwFoSHzPZSkbIvl0oYlD+91rBUEvFk763nMjMndj8=", ts="1353809207", nonce="Ygvqdz", hash="2QfCt3GuY9HQnHWyWD3wX68ZOKbynqlfYmuO2ZBRqtY=", ext="Bazinga!"`)
+}
+
+func (s *HawkSuite) TestRequestSigning(c *C) {
+	u, _ := url.Parse("https://example.net/somewhere/over/the/rainbow")
+	testRequestSigning(u, c)
+}
+
+func (s *HawkSuite) TestRequestSigningWithOpaque(c *C) {
+	uri := "https://example.net/somewhere/over/the/rainbow"
+	u, _ := url.Parse(uri)
+	u.Opaque = uri
+	testRequestSigning(u, c)
 }
 
 var responseAuthHeaderTests = []struct {
