@@ -294,7 +294,6 @@ func NewURLAuth(uri string, creds *Credentials, tsOffset time.Duration) (*Auth, 
 		Method:      "GET",
 		Credentials: *creds,
 		Timestamp:   Now().Add(tsOffset),
-		Nonce:       nonce(),
 	}
 	if u.Path != "" {
 		// url.Parse unescapes the path, which is unexpected
