@@ -297,7 +297,8 @@ func NewURLAuth(uri string, creds *Credentials, tsOffset time.Duration) (*Auth, 
 	}
 	if u.Path != "" {
 		// url.Parse unescapes the path, which is unexpected
-		auth.RequestURI = "/" + strings.SplitN(uri[8:], "/", 2)[1]
+		parts := strings.SplitN(uri[8:], "/", 2)
+		auth.RequestURI = "/" + parts[len(parts)-1]
 	} else {
 		auth.RequestURI = "/"
 	}
