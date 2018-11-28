@@ -283,7 +283,7 @@ func NewRequestAuth(req *http.Request, creds *Credentials, tsOffset time.Duratio
 	return auth
 }
 
-// NewRequestAuth builds a client Auth based on uri and creds. tsOffset will be
+// NewURLAuth builds a client Auth based on uri and creds. tsOffset will be
 // applied to Now when setting the timestamp.
 func NewURLAuth(uri string, creds *Credentials, tsOffset time.Duration) (*Auth, error) {
 	u, err := url.Parse(uri)
